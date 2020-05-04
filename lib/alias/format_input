@@ -1,0 +1,52 @@
+#!/usr/bin/env python3
+import os
+import sys
+import time
+import argparse
+import re
+import urllib.parse
+sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
+
+from core import utils
+
+
+# portscan -i /tmp/target.txt -o '$WORKSPACE/portscan/$OUTPUT' -s '$WORKSPACE/portscan/summary.txt' -p '$PLUGINS_PATH'
+def grep_the_IP(data):
+    cidr_regex = "((\d){1,3}\.){3}(\d){1,3}(\/(\d){1,3})?"
+    ips = []
+    p = re.compile(cidr_regex)
+    for m in p.finditer(data):
+        ips.append(m.group())
+    if ips:
+        return ips[0]
+    return ""
+
+def routine(args):
+    target = args.input
+    output = args.output
+
+    os.system(f'cat {target} | unfurl -u format http://%d >> {output}-scheme.txt')
+    os.system(f'cat {target} | unfurl -u format https://%d >> {output}-scheme.txt')
+    os.system(f'cat {target} | unfurl -u format %s://%d%p >> {output}-raw-scheme.txt')
+    os.system(f'cat {target} | unfurl -u format http://%d:%P >> {output}-port.txt')
+    os.system(f'cat {target} | unfurl -u format %s://%d%p >> {output}-paths.txt')
+    os.system(
+        f'cat {target} | unfurl -u format https://%d:%P >> {output}-port.txt')
+    os.system(f'cat {target} | unfurl -u format %d >> {output}-domains.txt')
+    os.system(f'cat {target} | unfurl -u format %r >> {output}-root.txt')
+
+    ips = []
+    data = utils.just_read(target, get_list=True)
+    for line in data:
+        ips.append(grep_the_IP(line))
+    if ips:
+        utils.just_write(f"{output}-range.txt", "\n".join(ips))
+        time.sleep(0.2)
+
+
+parser = argparse.ArgumentParser(description="VulnScan alias")
+parser.add_argument('-i', '--input', action='store', dest='input', help='input')
+parser.add_argument('-o', '--output', action='store', dest='output', help='output')
+
+args = parser.parse_args()
+routine(args)
